@@ -690,7 +690,9 @@ function renderDashboard(data) {
         tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1 },
         datalabels: {
           ...dlBase,
-          anchor: 'end', align: 'end',
+          anchor: 'end',
+          align: ctx => ctx.dataset.data[ctx.dataIndex] >= 10 ? 'start' : 'end',
+          color: ctx => ctx.dataset.data[ctx.dataIndex] >= 10 ? '#0a0c12' : '#e8e0d0',
           formatter: v => v + '건',
           font: { size: 12, weight: '500' }
         }
