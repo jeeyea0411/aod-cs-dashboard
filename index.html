@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abyss of Dungeons — CS Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  /* ──────────────────────────────
+     CONFIG: n8n webhook URL
+     아래 URL을 실제 n8n 주소로 교체하세요
+  ────────────────────────────── */
+
+  :root {
+    --bg-deep: #0a0c12;
+    --bg-panel: #0f1218;
+    --bg-card: #141820;
+    --bg-card2: #1a2030;
+    --border: rgba(180, 140, 60, 0.25);
+    --border-bright: rgba(180, 140, 60, 0.6);
+    --gold: #c8a84b;
+    --gold-light: #e8c870;
+    --red: #e05050;
+    --teal: #4ecdc4;
+    --purple: #9b7fe8;
+    --text-primary: #e8e0d0;
+    --text-secondary: #9a9080;
+    --text-dim: #5a5448;
+    --glow-gold: 0 0 20px rgba(200, 168, 75, 0.3);
+    --glow-red: 0 0 20px rgba(224, 80, 80, 0.3);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(180,140,60,0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(155,127,232,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 32px 32px 64px;
+  }
+
+  /* ── LOADING / ERROR OVERLAY ── */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-deep);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 16px;
+    transition: opacity 0.4s;
+  }
+
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .loading-title {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    color: var(--gold-light);
+    letter-spacing: 0.15em;
+  }
+
+  .loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(200,168,75,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  #error-banner {
+    display: none;
+    background: rgba(224,80,80,0.12);
+    border: 1px solid rgba(224,80,80,0.35);
+    border-radius: 6px;
+    padding: 12px 18px;
+    font-size: 12px;
+    color: var(--red);
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+
+  .header-left h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold-light);
+    letter-spacing: 0.08em;
+    text-shadow: var(--glow-gold);
+  }
+
+  .header-left .subtitle {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  .header-right { text-align: right; }
+
+  .period-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(224,80,80,0.1);
+    border: 1px solid rgba(224,80,80,0.3);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--red);
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .period-badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .period-text { font-size: 12px; color: var(--text-secondary); }
+
+  #last-updated {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* ── KPI STRIP ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+
+  .kpi-card.alert::before { background: linear-gradient(90deg, var(--red), transparent); }
+  .kpi-card.teal::before  { background: linear-gradient(90deg, var(--teal), transparent); }
+
+  .kpi-label { font-size: 12px; letter-spacing: 0.15em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-value { font-family: 'Cinzel', serif; font-size: 32px; font-weight: 600; color: var(--text-primary); line-height: 1; }
+  .kpi-card.alert .kpi-value { color: var(--red); text-shadow: var(--glow-red); }
+  .kpi-card.gold  .kpi-value { color: var(--gold-light); }
+  .kpi-sub  { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 16px; margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3-equal { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+  }
+
+  .panel-title {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    margin-bottom: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── TABLES ── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th { font-size: 12px; letter-spacing: 0.08em; color: var(--text-dim); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 500; text-transform: uppercase; }
+  .data-table td { font-size: 14px; color: var(--text-secondary); padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .data-table td.hl { color: var(--text-primary); font-weight: 500; }
+  .data-table td:last-child, .data-table th:last-child { text-align: right; }
+
+  /* Tags */
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; letter-spacing: 0.05em; font-weight: 500; }
+  .tag-red    { background: rgba(224,80,80,0.15);   color: var(--red);       border: 1px solid rgba(224,80,80,0.3); }
+  .tag-gold   { background: rgba(200,168,75,0.12);  color: var(--gold-light);border: 1px solid rgba(200,168,75,0.25); }
+  .tag-teal   { background: rgba(78,205,196,0.12);  color: var(--teal);      border: 1px solid rgba(78,205,196,0.25); }
+  .tag-purple { background: rgba(155,127,232,0.12); color: var(--purple);    border: 1px solid rgba(155,127,232,0.25); }
+
+  /* Sentiment */
+  .sentiment-row { margin-bottom: 12px; }
+  .sentiment-label-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .sentiment-label { color: var(--text-secondary); }
+  .sentiment-pct   { color: var(--text-primary); font-weight: 500; }
+  .sentiment-bar-bg   { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .sentiment-bar-fill { height: 100%; border-radius: 4px; }
+
+  /* Issue rows */
+  .issue-list { display: flex; flex-direction: column; gap: 8px; }
+  .issue-row { background: var(--bg-card2); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; }
+  .issue-indicator { width: 3px; border-radius: 2px; align-self: stretch; min-height: 16px; }
+  .issue-row-title { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 3px; }
+  .issue-row-desc  { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .issue-row-tags  { margin-top: 5px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* Risk gauge */
+  .risk-score { font-family: 'Cinzel', serif; font-size: 42px; font-weight: 600; color: #e87050; text-shadow: 0 0 30px rgba(232,112,80,0.4); line-height: 1; }
+  .risk-grade { font-size: 13px; letter-spacing: 0.2em; color: #e87050; text-transform: uppercase; margin-top: 4px; }
+  .risk-gauge { display: flex; flex-direction: column; align-items: center; padding: 10px 0; }
+  .risk-label-row { display: flex; justify-content: space-between; width: 100%; font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+  .sla-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .sla-row:last-child { border-bottom: none; }
+  .sla-metric { font-size: 13px; color: var(--text-secondary); }
+  .sla-val { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+  .sla-val.ok  { color: var(--teal); }
+  .sla-val.bad { color: var(--red); }
+  .sla-val.warn { color: var(--gold-light); }
+
+  /* Misc */
+  .misc-list { display: flex; flex-direction: column; gap: 6px; }
+  .misc-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--bg-card2); border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); }
+  .misc-dot  { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .misc-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .misc-text strong { color: var(--text-primary); font-weight: 500; }
+
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 24px 0; }
+
+  canvas { display: block; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-200 { height: 220px; }
+  .chart-160 { height: 180px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .panel, .kpi-card { animation: fadeIn 0.5s ease both; }
+
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); letter-spacing: 0.08em; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-deep); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="loading-title">⚔ ABYSS OF DUNGEONS</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-sub">Zendesk 데이터 불러오는 중...</div>
+</div>
+
+<div class="page">
+  <!-- ERROR BANNER -->
+  <div id="error-banner"></div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <h1>⚔ ABYSS OF DUNGEONS — CS DASHBOARD</h1>
+      <div class="subtitle">Service Termination · Refund Period Monitoring</div>
+    </div>
+    <div class="header-right">
+      <div class="period-badge">서비스 종료 후 환불 접수 기간</div>
+      <div class="period-text" id="period-text">2026.01.21 — 2026.03.21</div>
+      <div id="last-updated"></div>
+    </div>
+  </header>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip">
+    <div class="kpi-card gold">
+      <div class="kpi-label">환불 총 건수</div>
+      <div class="kpi-value">30</div>
+      <div class="kpi-sub">Android 24 · iOS 6</div>
+    </div>
+    <div class="kpi-card gold">
+      <div class="kpi-label">환불 총 금액</div>
+      <div class="kpi-value">$2,381</div>
+      <div class="kpi-sub">Google Play + App Store</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">전체 문의 인입</div>
+      <div class="kpi-value" id="kpi-total">—</div>
+      <div class="kpi-sub">누적 (기간 전체)</div>
+    </div>
+    <div class="kpi-card alert">
+      <div class="kpi-label">환불 문의</div>
+      <div class="kpi-value" id="kpi-refund">—</div>
+      <div class="kpi-sub">전체 문의 중 <strong id="kpi-refund-ratio" style="color:var(--red)">—%</strong></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">언어권 수</div>
+      <div class="kpi-value" id="kpi-lang">—</div>
+      <div class="kpi-sub" id="kpi-lang-sub">—</div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: 환불 처리 현황 -->
+  <div class="section-label">💰 환불 처리 현황</div>
+  <div class="grid-3-equal">
+    <div class="panel">
+      <div class="panel-title">📱 OS별 환불 건수</div>
+      <div class="chart-wrap chart-200"><canvas id="chartRefundOS"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🌐 언어별 환불 건수</div>
+      <div class="chart-wrap chart-200"><canvas id="chartRefundLang"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🏪 스토어별 환불 금액 (USD)</div>
+      <div class="chart-wrap chart-200"><canvas id="chartRefundStore"></canvas></div>
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="text-align:center;padding:8px;background:var(--bg-card2);border-radius:6px;">
+          <div style="font-size:11px;color:var(--text-dim)">Google Play</div>
+          <div style="font-family:'Cinzel',serif;font-size:16px;color:var(--teal)">$1,192.20</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--bg-card2);border-radius:6px;">
+          <div style="font-size:11px;color:var(--text-dim)">App Store</div>
+          <div style="font-family:'Cinzel',serif;font-size:16px;color:var(--purple)">$1,189.34</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 2: 문의 인입 현황 -->
+  <div class="section-label">📊 문의 인입 현황</div>
+
+  <div class="grid-3">
+    <div class="panel">
+      <div class="panel-title">📈 일별 문의 인입 추이 — 전체 vs 환불</div>
+      <div class="chart-wrap chart-200"><canvas id="chartDailyTrend"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🌐 언어별 환불 문의 비율</div>
+      <div class="chart-wrap chart-200"><canvas id="chartLang"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🔢 언어권별 환불 문의 건수</div>
+      <table class="data-table" id="lang-table">
+        <thead><tr><th>언어</th><th>건수</th><th>비율</th></tr></thead>
+        <tbody id="lang-tbody"><tr><td colspan="3" style="text-align:center;color:var(--text-dim)">로딩 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">📂 문의 유형(카테고리)별 인입 건수</div>
+      <div class="chart-wrap chart-200"><canvas id="chartCategory"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">⚙️ 카테고리별 인입 현황</div>
+      <table class="data-table">
+        <thead><tr><th>카테고리</th><th>건수</th></tr></thead>
+        <tbody id="cat-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text-dim)">로딩 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 3: 이슈 및 리스크 대응 -->
+  <div class="section-label">⚠️ 이슈 및 리스크 대응</div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">👥 유저 반응 — 문의 감성 분포 (Claude 분류 기반)</div>
+    <div id="sentiment-block" style="max-width:600px;">
+      <div class="sentiment-row">
+        <div class="sentiment-label-row"><span class="sentiment-label">😡 환불 지연/거부 불만</span><span class="sentiment-pct">—</span></div>
+        <div class="sentiment-bar-bg"><div class="sentiment-bar-fill" id="sb-1" style="width:0%;background:var(--red);"></div></div>
+      </div>
+      <div class="sentiment-row">
+        <div class="sentiment-label-row"><span class="sentiment-label">😟 서비스 종료 아쉬움</span><span class="sentiment-pct">—</span></div>
+        <div class="sentiment-bar-bg"><div class="sentiment-bar-fill" id="sb-2" style="width:0%;background:var(--purple);"></div></div>
+      </div>
+      <div class="sentiment-row">
+        <div class="sentiment-label-row"><span class="sentiment-label">😐 진행 상황 확인 (중립)</span><span class="sentiment-pct">—</span></div>
+        <div class="sentiment-bar-bg"><div class="sentiment-bar-fill" id="sb-3" style="width:0%;background:var(--gold);"></div></div>
+      </div>
+      <div class="sentiment-row">
+        <div class="sentiment-label-row"><span class="sentiment-label">😊 감사/응원</span><span class="sentiment-pct">—</span></div>
+        <div class="sentiment-bar-bg"><div class="sentiment-bar-fill" id="sb-4" style="width:0%;background:var(--teal);"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>ABYSS OF DUNGEONS — CS Dashboard (Live · Zendesk + n8n)</span>
+    <span id="footer-updated">—</span>
+  </footer>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  CONFIG — n8n webhook URL
+// ─────────────────────────────────────────────
+const N8N_WEBHOOK_URL = 'https://komorevee.app.n8n.cloud/webhook/aod-cs-data';
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5분마다 새로고침
+
+// ─────────────────────────────────────────────
+//  Chart.js 기본 설정
+// ─────────────────────────────────────────────
+const C = {
+  gold: '#c8a84b', goldLight: '#e8c870', red: '#e05050',
+  teal: '#4ecdc4', purple: '#9b7fe8', gridLine: 'rgba(255,255,255,0.05)',
+  textSec: '#9a9080', border: 'rgba(180,140,60,0.25)'
+};
+
+const baseFont = { family: "'Pretendard', -apple-system, sans-serif", size: 13 };
+Chart.defaults.color = C.textSec;
+Chart.defaults.font  = baseFont;
+
+let chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+// ─────────────────────────────────────────────
+//  데이터 패치 및 렌더링
+// ─────────────────────────────────────────────
+async function fetchAndRender() {
+  try {
+    const res = await fetch(N8N_WEBHOOK_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    renderDashboard(data);
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('error-banner').style.display = 'none';
+  } catch (err) {
+    console.error('Dashboard fetch error:', err);
+    const banner = document.getElementById('error-banner');
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <strong>⚠ 데이터 로드 실패</strong><br>
+      n8n webhook URL을 확인하거나 n8n 워크플로가 실행 중인지 확인하세요.<br>
+      오류: ${err.message}<br>
+      현재 설정 URL: <code>${N8N_WEBHOOK_URL}</code>
+    `;
+    document.getElementById('loading-overlay').classList.add('hidden');
+  }
+}
+
+function renderDashboard(data) {
+  const { kpi, dailyTrend, langBreakdown, categoryBreakdown, channelBreakdown, meta } = data;
+
+  // ── KPI
+  document.getElementById('kpi-total').textContent         = kpi.totalCount.toLocaleString();
+  document.getElementById('kpi-refund').textContent        = kpi.refundCount.toLocaleString();
+  document.getElementById('kpi-refund-ratio').textContent  = kpi.refundRatio + '%';
+  document.getElementById('kpi-lang').textContent          = kpi.langCount;
+  document.getElementById('kpi-lang-sub').textContent      = langBreakdown.map(l => l.lang.split('(')[0].trim()).join(' · ');
+
+  // ── Period / Updated
+  if (meta?.period) document.getElementById('period-text').textContent = meta.period;
+  const updatedStr = meta?.generated_at
+    ? new Date(meta.generated_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) + ' KST'
+    : new Date().toLocaleString('ko-KR') + ' KST';
+  document.getElementById('last-updated').textContent = '최종 업데이트: ' + updatedStr;
+  document.getElementById('footer-updated').textContent   = updatedStr;
+
+  // ── 리스크/채널 관련 코드 제거됨
+
+  // ─────────────── CHARTS ───────────────
+
+  // datalabels 공통 설정
+  const dlBase = { color: '#e8e0d0', font: { family: "'Pretendard', sans-serif", size: 12, weight: '500' } };
+
+  // 1. 일별 추이
+  destroyChart('daily');
+  chartInstances['daily'] = new Chart(document.getElementById('chartDailyTrend'), {
+    type: 'bar',
+    data: {
+      labels: dailyTrend.map(d => d.date),
+      datasets: [
+        { label: '전체 문의', data: dailyTrend.map(d => d.total), backgroundColor: 'rgba(200,168,75,0.25)', borderColor: C.gold, borderWidth: 1, borderRadius: 2 },
+        { label: '환불 문의', data: dailyTrend.map(d => d.refund), backgroundColor: 'rgba(224,80,80,0.35)', borderColor: C.red, borderWidth: 1, borderRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { boxWidth: 10, font: baseFont } },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1 },
+        datalabels: {
+          ...dlBase,
+          anchor: 'end', align: 'end',
+          formatter: v => v > 0 ? v : '',
+          font: { size: 10, weight: '500' }
+        }
+      },
+      scales: { x: { grid: { color: C.gridLine }, ticks: { font: { size: 11 } } }, y: { grid: { color: C.gridLine }, ticks: { font: { size: 11 } } } }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // 2. 언어별 파이
+  destroyChart('lang');
+  chartInstances['lang'] = new Chart(document.getElementById('chartLang'), {
+    type: 'doughnut',
+    data: {
+      labels: langBreakdown.map(l => l.lang),
+      datasets: [{ data: langBreakdown.map(l => l.count), backgroundColor: [C.red, C.goldLight, C.purple, C.teal, '#7ecff4', '#f4a261', '#a8d8a8', '#e8b4d0', '#b4d8e8'], borderColor: '#141820', borderWidth: 2, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 11 }, padding: 6 } },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1 },
+        datalabels: {
+          ...dlBase,
+          formatter: (v, ctx) => {
+            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = (v / total * 100).toFixed(1);
+            return pct >= 5 ? pct + '%' : '';
+          },
+          font: { size: 12, weight: '600' }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // 3. 카테고리 가로 막대
+  destroyChart('cat');
+  chartInstances['cat'] = new Chart(document.getElementById('chartCategory'), {
+    type: 'bar',
+    data: {
+      labels: categoryBreakdown.map(c => c.category),
+      datasets: [{
+        label: '문의 건수', data: categoryBreakdown.map(c => c.count),
+        backgroundColor: ['rgba(224,80,80,0.4)','rgba(200,168,75,0.4)','rgba(200,168,75,0.3)','rgba(244,162,97,0.3)','rgba(122,160,240,0.3)','rgba(78,205,196,0.3)','rgba(155,127,232,0.3)'],
+        borderColor: [C.red, C.gold, C.gold, '#f4a261', '#7aa0f0', C.teal, C.purple],
+        borderWidth: 1, borderRadius: 2
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1 },
+        datalabels: {
+          ...dlBase,
+          anchor: 'end', align: 'end',
+          formatter: v => v + '건',
+          font: { size: 12, weight: '500' }
+        }
+      },
+      scales: { x: { grid: { color: C.gridLine }, ticks: { font: { size: 11 } } }, y: { grid: { display: false }, ticks: { font: { size: 12 } } } }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // 4. OS별 환불 건수 (정적)
+  destroyChart('refundOS');
+  chartInstances['refundOS'] = new Chart(document.getElementById('chartRefundOS'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Android', 'iOS'],
+      datasets: [{ data: [24, 6], backgroundColor: ['rgba(78,205,196,0.5)', 'rgba(155,127,232,0.5)'], borderColor: [C.teal, C.purple], borderWidth: 2, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 12 }, padding: 10 } },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}건 (${(ctx.parsed/30*100).toFixed(1)}%)` }
+        },
+        datalabels: {
+          ...dlBase,
+          formatter: (v, ctx) => `${ctx.chart.data.labels[ctx.dataIndex]}\n${v}건`,
+          font: { size: 13, weight: '600' }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // 5. 언어별 환불 건수 (정적)
+  destroyChart('refundLang');
+  chartInstances['refundLang'] = new Chart(document.getElementById('chartRefundLang'), {
+    type: 'bar',
+    data: {
+      labels: ['영어', '인도네시아어', '포르투갈어', '태국어', '스페인어', '한국어'],
+      datasets: [{
+        label: '환불 건수',
+        data: [15, 7, 2, 2, 1, 1],
+        backgroundColor: ['rgba(224,80,80,0.4)','rgba(200,168,75,0.4)','rgba(78,205,196,0.4)','rgba(155,127,232,0.4)','rgba(244,162,97,0.4)','rgba(122,160,240,0.4)'],
+        borderColor: [C.red, C.gold, C.teal, C.purple, '#f4a261', '#7aa0f0'],
+        borderWidth: 1, borderRadius: 2
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1 },
+        datalabels: {
+          ...dlBase,
+          anchor: 'end', align: 'end',
+          formatter: v => v + '건',
+          font: { size: 12, weight: '500' }
+        }
+      },
+      scales: { x: { grid: { color: C.gridLine }, ticks: { font: { size: 11 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 12 } } } }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // 6. 스토어별 환불 금액 (정적)
+  destroyChart('refundStore');
+  chartInstances['refundStore'] = new Chart(document.getElementById('chartRefundStore'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Google Play', 'App Store'],
+      datasets: [{ data: [1192.20, 1189.34], backgroundColor: ['rgba(78,205,196,0.5)', 'rgba(155,127,232,0.5)'], borderColor: [C.teal, C.purple], borderWidth: 2, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 12 }, padding: 10 } },
+        tooltip: { backgroundColor: '#0f1218', borderColor: C.border, borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.label}: $${ctx.parsed.toFixed(2)}` }
+        },
+        datalabels: {
+          ...dlBase,
+          formatter: (v, ctx) => `${ctx.chart.data.labels[ctx.dataIndex]}\n$${v.toFixed(0)}`,
+          font: { size: 13, weight: '600' }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // ── 감성 분포
+  if (data.sentimentBreakdown) {
+    const ids = ['sb-1', 'sb-2', 'sb-3', 'sb-4'];
+    data.sentimentBreakdown.forEach((s, i) => {
+      const fill = document.getElementById(ids[i]);
+      const row = fill?.closest('.sentiment-row');
+      if (!fill || !row) return;
+      fill.style.width = s.pct + '%';
+      row.querySelector('.sentiment-pct').textContent = s.pct + '%';
+      row.querySelector('.sentiment-label').textContent = s.label;
+    });
+  }
+
+  // ── 언어권 테이블
+  const totalRefund = langBreakdown.reduce((s, l) => s + l.count, 0);
+  const langEmoji = {
+    '한국어':     '🇰🇷',
+    '영어':       '🇺🇸',
+    '일본어':     '🇯🇵',
+    '중국어(번체)': '🇹🇼',
+    '중국어(간체)': '🇨🇳',
+    '태국어':     '🇹🇭',
+    '독일어':     '🇩🇪',
+    '프랑스어':   '🇫🇷',
+    '스페인어':   '🇪🇸',
+    '포르투갈어': '🇧🇷',
+    '러시아어':   '🇷🇺',
+    '인도네시아어': '🇮🇩',
+    '아랍어':     '🇸🇦',
+    '터키어':     '🇹🇷',
+    '베트남어':   '🇻🇳',
+    '이탈리아어': '🇮🇹',
+    '폴란드어':   '🇵🇱'
+  };
+  const tagColors = ['tag-red','tag-gold','tag-purple','tag-teal','','','','','',''];
+  document.getElementById('lang-tbody').innerHTML = langBreakdown.map((l, i) => {
+    const pct = totalRefund > 0 ? ((l.count / totalRefund) * 100).toFixed(1) : 0;
+    const tag = tagColors[i] ? `<span class="tag ${tagColors[i]}">${pct}%</span>` : `${pct}%`;
+    const flag = langEmoji[l.lang] || '';
+    return `<tr><td class="hl">${flag} ${l.lang}</td><td>${l.count.toLocaleString()}</td><td>${tag}</td></tr>`;
+  }).join('');
+
+  // ── 카테고리 테이블
+  document.getElementById('cat-tbody').innerHTML = categoryBreakdown.map(c =>
+    `<tr><td class="hl">${c.category}</td><td style="color:var(--text-primary)">${c.count.toLocaleString()}</td></tr>`
+  ).join('');
+
+}
+
+// ─────────────────────────────────────────────
+//  초기 실행 및 자동 새로고침
+// ─────────────────────────────────────────────
+fetchAndRender();
+setInterval(fetchAndRender, REFRESH_INTERVAL_MS);
+</script>
+</body>
+</html>
